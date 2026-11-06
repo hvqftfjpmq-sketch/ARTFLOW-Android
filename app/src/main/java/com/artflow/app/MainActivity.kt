@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.RowScope
 
 private val Ink = Color(0xFF202124)
 private val Muted = Color(0xFF777B82)
@@ -290,7 +291,7 @@ fun ActionCard(
 }
 
 @Composable
-fun QuickTool(
+fun RowScope.QuickTool(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     onClick: () -> Unit
