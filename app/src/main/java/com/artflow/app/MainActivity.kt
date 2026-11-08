@@ -1,15 +1,24 @@
+
 package com.artflow.app
 
 import android.os.Bundle
 import android.net.Uri
-import android.widget.ImageView
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.ColorMatrixColorFilter
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -20,24 +29,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.ui.layout.ContentScale
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
-import android.graphics.Paint
-import android.graphics.ColorMatrixColorFilter
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.ColorMatrix
-import androidx.compose.ui.graphics.ColorFilter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -85,9 +84,7 @@ fun ArtflowApp() {
         Scaffold(
             containerColor = Background,
             bottomBar = {
-                NavigationBar(
-                    containerColor = Color.White
-                ) {
+                NavigationBar(containerColor = Color.White) {
                     val items = listOf(
                         "Главная" to Icons.Outlined.Home,
                         "Фото" to Icons.Outlined.Photo,
@@ -102,15 +99,12 @@ fun ArtflowApp() {
                             icon = {
                                 Icon(icon, contentDescription = name)
                             },
-                            label = {
-                                Text(name)
-                            }
+                            label = { Text(name) }
                         )
                     }
                 }
             }
         ) { padding ->
-
             when (selected) {
                 "Главная" -> HomeScreen(
                     Modifier.padding(padding),
@@ -151,9 +145,7 @@ fun HomeScreen(
     ) {
         Spacer(Modifier.height(20.dp))
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(
                     "ARTFLOW",
@@ -227,9 +219,7 @@ fun HomeScreen(
 
         Spacer(Modifier.height(15.dp))
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             QuickTool("Цвет", Icons.Outlined.Tune, onPhoto)
             QuickTool("Обрезка", Icons.Outlined.Crop, onPhoto)
             QuickTool("AI", Icons.Outlined.AutoFixHigh, onAI)
@@ -254,21 +244,14 @@ fun HomeScreen(
                 .background(Color.White),
             contentAlignment = Alignment.Center
         ) {
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     Icons.Outlined.Collections,
                     contentDescription = null,
                     tint = Muted
                 )
-
                 Spacer(Modifier.height(7.dp))
-
-                Text(
-                    "Пока здесь пусто",
-                    color = Muted
-                )
+                Text("Пока здесь пусто", color = Muted)
             }
         }
     }
@@ -309,12 +292,7 @@ fun ActionCard(
                 color = Ink,
                 fontWeight = FontWeight.SemiBold
             )
-
-            Text(
-                subtitle,
-                color = Muted,
-                fontSize = 12.sp
-            )
+            Text(subtitle, color = Muted, fontSize = 12.sp)
         }
 
         Icon(
@@ -359,14 +337,34 @@ fun PhotoEditorScreen(
         mutableStateOf<Bitmap?>(null)
     }
 
-    var brightness by remember(photoUri) { mutableFloatStateOf(0f) }
-    var contrast by remember(photoUri) { mutableFloatStateOf(0f) }
-    var saturation by remember(photoUri) { mutableFloatStateOf(0f) }
-    var warmth by remember(photoUri) { mutableFloatStateOf(0f) }
-    var rotation by remember(photoUri) { mutableIntStateOf(0) }
-    var showOriginal by remember { mutableStateOf(false) }
-    var saving by remember { mutableStateOf(false) }
-    var message by remember { mutableStateOf("") }
+    var brightness by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var contrast by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var saturation by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var warmth by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var rotation by remember(photoUri) {
+        mutableIntStateOf(0)
+    }
+    var selectedFilter by remember(photoUri) {
+        mutableStateOf("Оригинал")
+    }
+
+    var showOriginal by remember {
+        mutableStateOf(false)
+    }
+    var saving by remember {
+        mutableStateOf(false)
+    }
+    var message by remember {
+        mutableStateOf("")
+    }
 
     val saveLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("image/jpeg")
@@ -382,7 +380,8 @@ fun PhotoEditorScreen(
                             brightness,
                             contrast,
                             saturation,
-                            warmth
+                            warmth,
+                            selectedFilter
                         )
 
                         val result = createEditedBitmap(
@@ -416,6 +415,7 @@ fun PhotoEditorScreen(
 
     LaunchedEffect(photoUri) {
         original = null
+
         if (photoUri != null) {
             original = withContext(Dispatchers.IO) {
                 val resolver = context.contentResolver
@@ -429,6 +429,7 @@ fun PhotoEditorScreen(
                 }
 
                 var sample = 1
+
                 while (
                     maxOf(bounds.outWidth, bounds.outHeight) /
                     sample > 3000
@@ -449,19 +450,25 @@ fun PhotoEditorScreen(
     }
 
     val matrix = remember(
-        brightness, contrast, saturation, warmth
+        brightness,
+        contrast,
+        saturation,
+        warmth,
+        selectedFilter
     ) {
         createEditorMatrix(
             brightness,
             contrast,
             saturation,
-            warmth
+            warmth,
+            selectedFilter
         )
     }
 
     val preview = remember(original) {
         original?.let { bitmap ->
             val maxSize = 1600f
+
             val scale = minOf(
                 1f,
                 maxSize / maxOf(
@@ -514,15 +521,22 @@ fun PhotoEditorScreen(
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
                     Icon(
                         Icons.Outlined.AddPhotoAlternate,
-                        null,
+                        contentDescription = null,
                         tint = Accent,
                         modifier = Modifier.size(55.dp)
                     )
+
                     Spacer(Modifier.height(12.dp))
-                    Text("Выбери фотографию", color = Ink)
+
+                    Text(
+                        "Выбери фотографию",
+                        color = Ink
+                    )
                 }
             }
         } else {
@@ -541,8 +555,11 @@ fun PhotoEditorScreen(
                         .fillMaxSize()
                         .padding(8.dp),
                     contentScale = ContentScale.Fit,
-                    colorFilter = if (showOriginal) null
-                    else ColorFilter.colorMatrix(ColorMatrix(matrix))
+                    colorFilter = if (showOriginal) {
+                        null
+                    } else {
+                        ColorFilter.colorMatrix(ColorMatrix(matrix))
+                    }
                 )
             }
 
@@ -553,11 +570,16 @@ fun PhotoEditorScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 OutlinedButton(
-                    onClick = { showOriginal = !showOriginal }
+                    onClick = {
+                        showOriginal = !showOriginal
+                    }
                 ) {
                     Icon(Icons.Outlined.Compare, null)
                     Spacer(Modifier.width(5.dp))
-                    Text(if (showOriginal) "После" else "До / После")
+                    Text(
+                        if (showOriginal) "После"
+                        else "До / После"
+                    )
                 }
 
                 OutlinedButton(
@@ -570,7 +592,51 @@ fun PhotoEditorScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(18.dp))
+
+            Text(
+                "Фильтры",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            val filters = listOf(
+                "Оригинал",
+                "Яркий",
+                "Тёплый",
+                "Холодный",
+                "Винтаж",
+                "Ч/Б"
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filters.forEach { filter ->
+                    FilterChip(
+                        selected = selectedFilter == filter,
+                        onClick = {
+                            selectedFilter = filter
+                            showOriginal = false
+                        },
+                        label = {
+                            Text(filter)
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Color(0xFFEAE6FF),
+                            selectedLabelColor = Accent
+                        )
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
 
             Text(
                 "Настройки изображения",
@@ -613,6 +679,7 @@ fun PhotoEditorScreen(
                     contrast = 0f
                     saturation = 0f
                     warmth = 0f
+                    selectedFilter = "Оригинал"
                     rotation = 0
                     showOriginal = false
                 },
@@ -662,7 +729,10 @@ fun PhotoEditorScreen(
             ) {
                 Icon(Icons.Outlined.Save, null)
                 Spacer(Modifier.width(8.dp))
-                Text(if (saving) "Сохранение..." else "Сохранить фотографию")
+                Text(
+                    if (saving) "Сохранение..."
+                    else "Сохранить фотографию"
+                )
             }
         }
 
@@ -686,7 +756,12 @@ fun EditorSlider(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(title, color = Ink, fontWeight = FontWeight.Medium)
+            Text(
+                title,
+                color = Ink,
+                fontWeight = FontWeight.Medium
+            )
+
             Text(
                 value.toInt().toString(),
                 color = Accent,
@@ -707,7 +782,10 @@ fun EditorSlider(
 }
 
 @Composable
-fun ModuleScreen(title: String, description: String) {
+fun ModuleScreen(
+    title: String,
+    description: String
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -740,11 +818,13 @@ fun ModuleScreen(title: String, description: String) {
         )
     }
 }
+
 fun createEditorMatrix(
     brightness: Float,
     contrast: Float,
     saturation: Float,
-    warmth: Float
+    warmth: Float,
+    filter: String = "Оригинал"
 ): FloatArray {
 
     val s = 1f + saturation / 100f
@@ -786,9 +866,59 @@ fun createEditorMatrix(
         0f, 0f, 0f, 1f, 0f
     )
 
-    return multiplyColorMatrices(
+    val adjustments = multiplyColorMatrices(
         temp,
         multiplyColorMatrices(con, sat)
+    )
+
+    val preset = when (filter) {
+
+        "Яркий" -> floatArrayOf(
+            1.12f, 0f, 0f, 0f, -8f,
+            0f, 1.12f, 0f, 0f, -8f,
+            0f, 0f, 1.12f, 0f, -8f,
+            0f, 0f, 0f, 1f, 0f
+        )
+
+        "Тёплый" -> floatArrayOf(
+            1.12f, 0f, 0f, 0f, 4f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 0.84f, 0f, -2f,
+            0f, 0f, 0f, 1f, 0f
+        )
+
+        "Холодный" -> floatArrayOf(
+            0.88f, 0f, 0f, 0f, -2f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1.14f, 0f, 5f,
+            0f, 0f, 0f, 1f, 0f
+        )
+
+        "Винтаж" -> floatArrayOf(
+            0.92f, 0.04f, 0f, 0f, 12f,
+            0.02f, 0.88f, 0.02f, 0f, 7f,
+            0f, 0.04f, 0.76f, 0f, -3f,
+            0f, 0f, 0f, 1f, 0f
+        )
+
+        "Ч/Б" -> floatArrayOf(
+            0.213f, 0.715f, 0.072f, 0f, 0f,
+            0.213f, 0.715f, 0.072f, 0f, 0f,
+            0.213f, 0.715f, 0.072f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        )
+
+        else -> floatArrayOf(
+            1f, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f
+        )
+    }
+
+    return multiplyColorMatrices(
+        adjustments,
+        preset
     )
 }
 
@@ -842,7 +972,9 @@ fun createEditedBitmap(
 
     val canvas = Canvas(output)
 
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+    val paint = Paint(
+        Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG
+    ).apply {
         colorFilter = ColorMatrixColorFilter(matrix)
     }
 
