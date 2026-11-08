@@ -28,6 +28,23 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.ui.layout.ContentScale
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.ColorMatrixColorFilter
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.activity.result.contract.ActivityResultContracts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Ink = Color(0xFF202124)
 private val Muted = Color(0xFF777B82)
@@ -339,10 +356,142 @@ fun PhotoEditorScreen(
     photoUri: Uri?,
     onChoosePhoto: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var original by remember(photoUri) {
+        mutableStateOf<Bitmap?>(null)
+    }
+
+    var brightness by remember(photoUri) { mutableFloatStateOf(0f) }
+    var contrast by remember(photoUri) { mutableFloatStateOf(0f) }
+    var saturation by remember(photoUri) { mutableFloatStateOf(0f) }
+    var warmth by remember(photoUri) { mutableFloatStateOf(0f) }
+    var rotation by remember(photoUri) { mutableIntStateOf(0) }
+    var showOriginal by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
+
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/jpeg")
+    ) { uri ->
+        if (uri != null && original != null) {
+            scope.launch {
+                saving = true
+                message = ""
+
+                try {
+                    withContext(Dispatchers.IO) {
+                        val matrix = createEditorMatrix(
+                            brightness,
+                            contrast,
+                            saturation,
+                            warmth
+                        )
+
+                        val result = createEditedBitmap(
+                            original!!,
+                            matrix,
+                            rotation
+                        )
+
+                        context.contentResolver
+                            .openOutputStream(uri)
+                            ?.use { stream ->
+                                result.compress(
+                                    Bitmap.CompressFormat.JPEG,
+                                    95,
+                                    stream
+                                )
+                            } ?: error("Не удалось открыть файл")
+
+                        result.recycle()
+                    }
+
+                    message = "Фотография успешно сохранена!"
+                } catch (e: Exception) {
+                    message = "Ошибка сохранения: ${e.message}"
+                } finally {
+                    saving = false
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(photoUri) {
+        original = null
+        if (photoUri != null) {
+            original = withContext(Dispatchers.IO) {
+                val resolver = context.contentResolver
+
+                val bounds = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+
+                resolver.openInputStream(photoUri)?.use {
+                    BitmapFactory.decodeStream(it, null, bounds)
+                }
+
+                var sample = 1
+                while (
+                    maxOf(bounds.outWidth, bounds.outHeight) /
+                    sample > 3000
+                ) {
+                    sample *= 2
+                }
+
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+
+                resolver.openInputStream(photoUri)?.use {
+                    BitmapFactory.decodeStream(it, null, options)
+                }
+            }
+        }
+    }
+
+    val matrix = remember(
+        brightness, contrast, saturation, warmth
+    ) {
+        createEditorMatrix(
+            brightness,
+            contrast,
+            saturation,
+            warmth
+        )
+    }
+
+    val preview = remember(original) {
+        original?.let { bitmap ->
+            val maxSize = 1600f
+            val scale = minOf(
+                1f,
+                maxSize / maxOf(
+                    bitmap.width.toFloat(),
+                    bitmap.height.toFloat()
+                )
+            )
+
+            if (scale < 1f) {
+                Bitmap.createScaledBitmap(
+                    bitmap,
+                    (bitmap.width * scale).toInt().coerceAtLeast(1),
+                    (bitmap.height * scale).toInt().coerceAtLeast(1),
+                    true
+                )
+            } else {
+                bitmap
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
             .background(Background)
+            .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
         Text(
@@ -352,70 +501,131 @@ fun PhotoEditorScreen(
             color = Ink
         )
 
-        Spacer(Modifier.height(8.dp))
-
         Text(
-            "Твори и редактируй свои фотографии",
+            "Создавай фотографии по-своему",
             color = Muted,
             fontSize = 14.sp
         )
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(18.dp))
 
-        if (photoUri == null) {
+        if (preview == null) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(22.dp))
+                    .height(280.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Outlined.AddPhotoAlternate,
-                        contentDescription = null,
+                        null,
                         tint = Accent,
-                        modifier = Modifier.size(65.dp)
+                        modifier = Modifier.size(55.dp)
                     )
-
-                    Spacer(Modifier.height(15.dp))
-
-                    Text(
-                        "Выбери фотографию",
-                        color = Ink,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp
-                    )
-
-                    Spacer(Modifier.height(7.dp))
-
-                    Text(
-                        "Загрузи изображение из галереи",
-                        color = Muted,
-                        fontSize = 13.sp
-                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("Выбери фотографию", color = Ink)
                 }
             }
         } else {
-            AndroidView(
-                modifier = Modifier
+            Box(
+                Modifier
                     .fillMaxWidth()
-                    .weight(1f)
-                    .clip(RoundedCornerShape(18.dp))
+                    .height(300.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(Color.White),
-                factory = { context ->
-                    ImageView(context).apply {
-                        scaleType = ImageView.ScaleType.FIT_CENTER
-                        setImageURI(photoUri)
-                    }
-                },
-                update = { imageView ->
-                    imageView.setImageURI(photoUri)
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    bitmap = preview.asImageBitmap(),
+                    contentDescription = "Предпросмотр фотографии",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(8.dp),
+                    contentScale = ContentScale.Fit,
+                    colorFilter = if (showOriginal) null
+                    else ColorFilter.colorMatrix(ColorMatrix(matrix))
+                )
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                OutlinedButton(
+                    onClick = { showOriginal = !showOriginal }
+                ) {
+                    Icon(Icons.Outlined.Compare, null)
+                    Spacer(Modifier.width(5.dp))
+                    Text(if (showOriginal) "После" else "До / После")
                 }
+
+                OutlinedButton(
+                    onClick = {
+                        rotation = (rotation + 90) % 360
+                    }
+                ) {
+                    Icon(Icons.Outlined.RotateRight, null)
+                    Text("Повернуть")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                "Настройки изображения",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            EditorSlider(
+                "Яркость",
+                brightness,
+                { brightness = it }
+            )
+
+            EditorSlider(
+                "Контрастность",
+                contrast,
+                { contrast = it }
+            )
+
+            EditorSlider(
+                "Насыщенность",
+                saturation,
+                { saturation = it }
+            )
+
+            EditorSlider(
+                "Теплота",
+                warmth,
+                { warmth = it }
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            OutlinedButton(
+                onClick = {
+                    brightness = 0f
+                    contrast = 0f
+                    saturation = 0f
+                    warmth = 0f
+                    rotation = 0
+                    showOriginal = false
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Outlined.RestartAlt, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Сбросить настройки")
+            }
         }
 
         Spacer(Modifier.height(16.dp))
@@ -424,35 +634,79 @@ fun PhotoEditorScreen(
             onClick = onChoosePhoto,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(55.dp),
-            shape = RoundedCornerShape(16.dp),
+                .height(52.dp),
+            shape = RoundedCornerShape(15.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = Accent
             )
         ) {
-            Icon(
-                Icons.Outlined.AddPhotoAlternate,
-                contentDescription = null
-            )
-
-            Spacer(Modifier.width(10.dp))
-
-            Text(
-                if (photoUri == null) "Выбрать фото"
-                else "Выбрать другую фотографию",
-                fontSize = 15.sp
-            )
+            Icon(Icons.Outlined.AddPhotoAlternate, null)
+            Spacer(Modifier.width(8.dp))
+            Text("Выбрать фотографию")
         }
 
-        if (photoUri != null) {
+        if (preview != null) {
             Spacer(Modifier.height(10.dp))
 
+            Button(
+                onClick = {
+                    showOriginal = false
+                    saveLauncher.launch(
+                        "ARTFLOW_${System.currentTimeMillis()}.jpg"
+                    )
+                },
+                enabled = !saving,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(15.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Color(0xFF249B61)
+                )
+            ) {
+                Icon(Icons.Outlined.Save, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (saving) "Сохранение..." else "Сохранить фотографию")
+            }
+        }
+
+        if (message.isNotEmpty()) {
+            Spacer(Modifier.height(12.dp))
+            Text(message, color = Accent)
+        }
+
+        Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+fun EditorSlider(
+    title: String,
+    value: Float,
+    onValueChange: (Float) -> Unit
+) {
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(title, color = Ink, fontWeight = FontWeight.Medium)
             Text(
-                "Фотография загружена. Инструменты обработки добавим следующим этапом.",
-                color = Muted,
-                fontSize = 12.sp
+                value.toInt().toString(),
+                color = Accent,
+                fontWeight = FontWeight.Bold
             )
         }
+
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = -100f..100f,
+            colors = SliderDefaults.colors(
+                thumbColor = Accent,
+                activeTrackColor = Accent
+            )
+        )
     }
 }
 
@@ -489,4 +743,122 @@ fun ModuleScreen(title: String, description: String) {
             color = Muted
         )
     }
+}
+fun createEditorMatrix(
+    brightness: Float,
+    contrast: Float,
+    saturation: Float,
+    warmth: Float
+): FloatArray {
+
+    val s = 1f + saturation / 100f
+    val c = 1f + contrast / 100f
+    val b = brightness * 2.55f
+
+    val sat = floatArrayOf(
+        0.213f + 0.787f * s,
+        0.715f - 0.715f * s,
+        0.072f - 0.072f * s,
+        0f, 0f,
+
+        0.213f - 0.213f * s,
+        0.715f + 0.285f * s,
+        0.072f - 0.072f * s,
+        0f, 0f,
+
+        0.213f - 0.213f * s,
+        0.715f - 0.715f * s,
+        0.072f + 0.928f * s,
+        0f, 0f,
+
+        0f, 0f, 0f, 1f, 0f
+    )
+
+    val con = floatArrayOf(
+        c, 0f, 0f, 0f, 128f * (1f - c) + b,
+        0f, c, 0f, 0f, 128f * (1f - c) + b,
+        0f, 0f, c, 0f, 128f * (1f - c) + b,
+        0f, 0f, 0f, 1f, 0f
+    )
+
+    val w = warmth / 100f
+
+    val temp = floatArrayOf(
+        1f + w * 0.25f, 0f, 0f, 0f, 0f,
+        0f, 1f, 0f, 0f, 0f,
+        0f, 0f, 1f - w * 0.25f, 0f, 0f,
+        0f, 0f, 0f, 1f, 0f
+    )
+
+    return multiplyColorMatrices(
+        temp,
+        multiplyColorMatrices(con, sat)
+    )
+}
+
+fun multiplyColorMatrices(
+    a: FloatArray,
+    b: FloatArray
+): FloatArray {
+    val result = FloatArray(20)
+
+    for (row in 0..3) {
+        for (col in 0..3) {
+            var value = 0f
+
+            for (k in 0..3) {
+                value += a[row * 5 + k] *
+                    b[k * 5 + col]
+            }
+
+            result[row * 5 + col] = value
+        }
+
+        var offset = a[row * 5 + 4]
+
+        for (k in 0..3) {
+            offset += a[row * 5 + k] *
+                b[k * 5 + 4]
+        }
+
+        result[row * 5 + 4] = offset
+    }
+
+    return result
+}
+
+fun createEditedBitmap(
+    source: Bitmap,
+    matrix: FloatArray,
+    rotation: Int
+): Bitmap {
+
+    val rotated = rotation % 180 != 0
+
+    val width = if (rotated) source.height else source.width
+    val height = if (rotated) source.width else source.height
+
+    val output = Bitmap.createBitmap(
+        width,
+        height,
+        Bitmap.Config.ARGB_8888
+    )
+
+    val canvas = Canvas(output)
+
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
+        colorFilter = ColorMatrixColorFilter(matrix)
+    }
+
+    canvas.translate(width / 2f, height / 2f)
+    canvas.rotate(rotation.toFloat())
+
+    canvas.drawBitmap(
+        source,
+        -source.width / 2f,
+        -source.height / 2f,
+        paint
+    )
+
+    return output
 }
