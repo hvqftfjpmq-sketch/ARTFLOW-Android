@@ -533,11 +533,11 @@ fun PhotoEditorScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Background)
-            .padding(20.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
     ) {
         Text(
             "Фоторедактор",
-            fontSize = 26.sp,
+            fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = Ink
         )
@@ -545,17 +545,17 @@ fun PhotoEditorScreen(
         Text(
             "Создавай фотографии по-своему",
             color = Muted,
-            fontSize = 14.sp
+            fontSize = 12.sp
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(8.dp))
 
         if (preview == null) {
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(280.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
@@ -581,8 +581,8 @@ fun PhotoEditorScreen(
             Box(
                 Modifier
                     .fillMaxWidth()
-                    .height(300.dp)
-                    .clip(RoundedCornerShape(20.dp))
+                    .height(220.dp)
+                    .clip(RoundedCornerShape(16.dp))
                     .background(Color.White),
                 contentAlignment = Alignment.Center
             ) {
@@ -620,32 +620,30 @@ fun PhotoEditorScreen(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = {
-                        showOriginal = !showOriginal
-                    }
+                    onClick = { showOriginal = !showOriginal },
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Icon(Icons.Outlined.Compare, null)
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        if (showOriginal) "После"
-                        else "До / После"
-                    )
+                    Icon(Icons.Outlined.Compare, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(if (showOriginal) "После" else "До / После", fontSize = 11.sp)
                 }
 
                 OutlinedButton(
-                    onClick = {
-                        rotation = (rotation + 90) % 360
-                    }
+                    onClick = { rotation = (rotation + 90) % 360 },
+                    modifier = Modifier.weight(1f).height(38.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
                 ) {
-                    Icon(Icons.Outlined.RotateRight, null)
-                    Text("Повернуть")
+                    Icon(Icons.Outlined.RotateRight, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Повернуть", fontSize = 11.sp)
                 }
             }
 
-            Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(8.dp))
 
             Column(
                 modifier = Modifier
@@ -913,60 +911,64 @@ fun PhotoEditorScreen(
             }
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
 
-        Button(
-            onClick = onChoosePhoto,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(15.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Accent
-            )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Outlined.AddPhotoAlternate, null)
-            Spacer(Modifier.width(8.dp))
-            Text("Выбрать фотографию")
-        }
-
-        if (preview != null) {
-            Spacer(Modifier.height(10.dp))
-
             Button(
-                onClick = {
-                    showOriginal = false
-                    saveLauncher.launch(
-                        "ARTFLOW_${System.currentTimeMillis()}.jpg"
-                    )
-                },
-                enabled = !saving,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                shape = RoundedCornerShape(15.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color(0xFF249B61)
-                )
+                onClick = onChoosePhoto,
+                modifier = Modifier.weight(1f).height(42.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                shape = RoundedCornerShape(11.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent)
             ) {
-                Icon(Icons.Outlined.Save, null)
-                Spacer(Modifier.width(8.dp))
-                Text(
-                    if (saving) "Сохранение..."
-                    else "Сохранить фотографию"
+                Icon(
+                    Icons.Outlined.AddPhotoAlternate,
+                    null,
+                    modifier = Modifier.size(16.dp)
                 )
+                Spacer(Modifier.width(4.dp))
+                Text("Выбрать", fontSize = 11.sp, maxLines = 1)
+            }
+
+            if (preview != null) {
+                Button(
+                    onClick = {
+                        showOriginal = false
+                        saveLauncher.launch(
+                            "ARTFLOW_${System.currentTimeMillis()}.jpg"
+                        )
+                    },
+                    enabled = !saving,
+                    modifier = Modifier.weight(1f).height(42.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(11.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF249B61)
+                    )
+                ) {
+                    Icon(Icons.Outlined.Save, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        if (saving) "Сохранение" else "Сохранить",
+                        fontSize = 11.sp,
+                        maxLines = 1
+                    )
+                }
             }
         }
 
         if (message.isNotEmpty()) {
-            Spacer(Modifier.height(12.dp))
-            Text(message, color = Accent)
+            Spacer(Modifier.height(4.dp))
+            Text(message, color = Accent, fontSize = 11.sp)
         }
 
-        Spacer(Modifier.height(20.dp))
-            }
+        Spacer(Modifier.height(6.dp))
         }
     }
+}
 
 @Composable
 fun EditorSlider(
@@ -1082,6 +1084,10 @@ fun createEditorMatrix(
 
     val w = warmth / 100f
 
+
+```
+
+```
     val temp = floatArrayOf(
         1f + w * 0.25f, 0f, 0f, 0f, 0f,
         0f, 1f, 0f, 0f, 0f,
@@ -1283,4 +1289,3 @@ fun cropBitmap(
 
     return Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
 }
-
