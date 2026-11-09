@@ -1,4 +1,3 @@
-
 package com.artflow.app
 
 import android.os.Bundle
@@ -32,6 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -352,23 +352,23 @@ fun PhotoEditorScreen(
     var rotation by remember(photoUri) {
         mutableIntStateOf(0)
     }
-    var cropMode by remember(photoUri) {
-    mutableStateOf(false)
-}
-
-var cropRatio by remember(photoUri) {
-    mutableStateOf("1:1")
-}
-
-var cropX by remember(photoUri) {
-    mutableFloatStateOf(0f)
-}
-
-var cropY by remember(photoUri) {
-    mutableFloatStateOf(0f)
-}
-var selectedFilter by remember(photoUri) {
-    mutableStateOf("Оригинал")
+    var overlayText by remember(photoUri) {
+        mutableStateOf("")
+    }
+    var textColor by remember(photoUri) {
+        mutableStateOf(Color.White)
+    }
+    var textSize by remember(photoUri) {
+        mutableFloatStateOf(48f)
+    }
+    var textX by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var textY by remember(photoUri) {
+        mutableFloatStateOf(0f)
+    }
+    var selectedFilter by remember(photoUri) {
+        mutableStateOf("Оригинал")
     }
 
     var showOriginal by remember {
@@ -399,11 +399,26 @@ var selectedFilter by remember(photoUri) {
                             selectedFilter
                         )
 
-                        val result = createEditedBitmap(
+                        val edited = createEditedBitmap(
                             original!!,
                             matrix,
                             rotation
                         )
+
+                        val result = if (overlayText.isNotBlank()) {
+                            drawTextOnBitmap(
+                                edited,
+                                overlayText,
+                                textColor.toArgb(),
+                                textSize,
+                                textX,
+                                textY
+                            )
+                        } else {
+                            edited
+                        }
+
+                        if (result !== edited) edited.recycle()
 
                         context.contentResolver
                             .openOutputStream(uri)
@@ -526,114 +541,7 @@ var selectedFilter by remember(photoUri) {
         )
 
         Spacer(Modifier.height(18.dp))
-            OutlinedButton(
-                onClick = {
-                    cropMode = !cropMode
-                    cropX = 0f
-                    cropY = 0f
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Outlined.Crop, null)
-                Spacer(Modifier.width(8.dp))
-                Text(if (cropMode) "Закрыть обрезку" else "Обрезать фото")
-            }
 
-            if (cropMode) {
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "Формат кадрирования",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Ink
-                )
-
-                Spacer(Modifier.height(8.dp))
-
-                val ratios = listOf(
-                    "1:1", "4:5", "16:9", "9:16", "Свободно"
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(7.dp)
-                ) {
-                    ratios.forEach { ratio ->
-                        FilterChip(
-                            selected = cropRatio == ratio,
-                            onClick = {
-                                cropRatio = ratio
-                                cropX = 0f
-                                cropY = 0f
-                            },
-                            label = { Text(ratio) }
-                        )
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    "Положение по горизонтали",
-                    color = Ink
-                )
-
-                Slider(
-                    value = cropX,
-                    onValueChange = { cropX = it },
-                    valueRange = -1f..1f
-                )
-
-                Text(
-                    "Положение по вертикали",
-                    color = Ink
-                )
-
-                Slider(
-                    value = cropY,
-                    onValueChange = { cropY = it },
-                    valueRange = -1f..1f
-                )
-
-                Button(
-                    onClick = {
-                        original?.let { bitmap ->
-                            val cropped = cropBitmap(
-                                bitmap,
-                                cropRatio,
-                                cropX,
-                                cropY
-                            )
-
-                            original = cropped
-                        }
-
-                        cropMode = false
-                        cropX = 0f
-                        cropY = 0f
-                        message = "Обрезка применена!"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Outlined.Check, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Применить обрезку")
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        cropX = 0f
-                        cropY = 0f
-                        cropRatio = "1:1"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Сбросить область обрезки")
-                }
-            }
         if (preview == null) {
             Box(
                 Modifier
@@ -683,6 +591,21 @@ var selectedFilter by remember(photoUri) {
                         ColorFilter.colorMatrix(ColorMatrix(matrix))
                     }
                 )
+
+                if (overlayText.isNotBlank() && !showOriginal) {
+                    Text(
+                        text = overlayText,
+                        color = textColor,
+                        fontSize = textSize.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .offset(
+                                x = (textX * 100f).dp,
+                                y = (textY * 100f).dp
+                            )
+                    )
+                }
             }
 
             Spacer(Modifier.height(12.dp))
@@ -712,6 +635,95 @@ var selectedFilter by remember(photoUri) {
                     Icon(Icons.Outlined.RotateRight, null)
                     Text("Повернуть")
                 }
+            }
+
+            Spacer(Modifier.height(20.dp))
+
+            Text(
+                "Текст на фото",
+                fontSize = 19.sp,
+                fontWeight = FontWeight.Bold,
+                color = Ink
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            OutlinedTextField(
+                value = overlayText,
+                onValueChange = { overlayText = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Введите надпись") },
+                singleLine = true
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Text("Цвет текста", color = Ink)
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                listOf(
+                    Color.White,
+                    Color.Black,
+                    Color.Red,
+                    Color.Yellow,
+                    Color.Blue,
+                    Color.Green
+                ).forEach { color ->
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .background(color, CircleShape)
+                            .clickable { textColor = color }
+                            .clip(CircleShape)
+                    ) {
+                        if (textColor == color) {
+                            Icon(
+                                Icons.Outlined.Check,
+                                contentDescription = "Выбранный цвет",
+                                tint = if (color == Color.White || color == Color.Yellow) Color.Black else Color.White,
+                                modifier = Modifier.align(Alignment.Center)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text("Размер текста: ${textSize.toInt()}", color = Ink)
+            Slider(
+                value = textSize,
+                onValueChange = { textSize = it },
+                valueRange = 20f..100f
+            )
+
+            Text("Положение по горизонтали", color = Ink)
+            Slider(
+                value = textX,
+                onValueChange = { textX = it },
+                valueRange = -1f..1f
+            )
+
+            Text("Положение по вертикали", color = Ink)
+            Slider(
+                value = textY,
+                onValueChange = { textY = it },
+                valueRange = -1f..1f
+            )
+
+            OutlinedButton(
+                onClick = {
+                    overlayText = ""
+                    textColor = Color.White
+                    textSize = 48f
+                    textX = 0f
+                    textY = 0f
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Убрать текст")
             }
 
             Spacer(Modifier.height(18.dp))
@@ -803,6 +815,11 @@ var selectedFilter by remember(photoUri) {
                     warmth = 0f
                     selectedFilter = "Оригинал"
                     rotation = 0
+                    overlayText = ""
+                    textColor = Color.White
+                    textSize = 48f
+                    textX = 0f
+                    textY = 0f
                     showOriginal = false
                 },
                 modifier = Modifier.fillMaxWidth()
@@ -1112,57 +1129,32 @@ fun createEditedBitmap(
 
     return output
 }
-fun cropBitmap(
+
+fun drawTextOnBitmap(
     source: Bitmap,
-    ratio: String,
+    text: String,
+    color: Int,
+    previewTextSize: Float,
     offsetX: Float,
     offsetY: Float
 ): Bitmap {
+    val output = source.copy(Bitmap.Config.ARGB_8888, true)
+    val canvas = Canvas(output)
 
-    if (ratio == "Свободно") {
-        return source
+    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        this.color = color
+        textAlign = Paint.Align.CENTER
+        textSize = (previewTextSize * source.width / 360f).coerceIn(12f, 400f)
+        typeface = android.graphics.Typeface.create(
+            android.graphics.Typeface.DEFAULT,
+            android.graphics.Typeface.BOLD
+        )
+        setShadowLayer(4f, 2f, 2f, android.graphics.Color.BLACK)
     }
 
-    val targetRatio = when (ratio) {
-        "1:1" -> 1f
-        "4:5" -> 4f / 5f
-        "16:9" -> 16f / 9f
-        "9:16" -> 9f / 16f
-        else -> source.width.toFloat() / source.height
-    }
+    val x = source.width / 2f + offsetX * source.width * 0.35f
+    val y = source.height / 2f + offsetY * source.height * 0.35f
 
-    val sourceRatio =
-        source.width.toFloat() / source.height
-
-    var cropWidth = source.width
-    var cropHeight = source.height
-
-    if (sourceRatio > targetRatio) {
-        cropWidth = (source.height * targetRatio)
-            .toInt()
-            .coerceIn(1, source.width)
-    } else {
-        cropHeight = (source.width / targetRatio)
-            .toInt()
-            .coerceIn(1, source.height)
-    }
-
-    val maxX = source.width - cropWidth
-    val maxY = source.height - cropHeight
-
-    val left = (
-        maxX / 2f + offsetX * maxX / 2f
-    ).toInt().coerceIn(0, maxX)
-
-    val top = (
-        maxY / 2f + offsetY * maxY / 2f
-    ).toInt().coerceIn(0, maxY)
-
-    return Bitmap.createBitmap(
-        source,
-        left,
-        top,
-        cropWidth,
-        cropHeight
-    )
+    canvas.drawText(text, x, y, paint)
+    return output
 }
