@@ -967,7 +967,6 @@ fun PhotoEditorScreen(
             }
         }
     }
-}
 
 @Composable
 fun EditorSlider(
@@ -1083,10 +1082,6 @@ fun createEditorMatrix(
 
     val w = warmth / 100f
 
-
-```
-
-```
     val temp = floatArrayOf(
         1f + w * 0.25f, 0f, 0f, 0f, 0f,
         0f, 1f, 0f, 0f, 0f,
