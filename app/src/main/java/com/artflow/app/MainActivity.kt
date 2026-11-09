@@ -524,7 +524,6 @@ fun PhotoEditorScreen(
         modifier = modifier
             .fillMaxSize()
             .background(Background)
-            .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
         Text(
@@ -638,7 +637,12 @@ fun PhotoEditorScreen(
             }
 
             Spacer(Modifier.height(20.dp))
-
+Column(
+    modifier = Modifier
+        .weight(1f)
+        .fillMaxWidth()
+        .verticalScroll(rememberScrollState())
+) {
             Text(
                 "Текст на фото",
                 fontSize = 19.sp,
@@ -828,6 +832,7 @@ fun PhotoEditorScreen(
                 Spacer(Modifier.width(8.dp))
                 Text("Сбросить настройки")
             }
+        }
         }
 
         Spacer(Modifier.height(16.dp))
