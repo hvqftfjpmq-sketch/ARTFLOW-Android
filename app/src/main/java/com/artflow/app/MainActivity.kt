@@ -352,8 +352,23 @@ fun PhotoEditorScreen(
     var rotation by remember(photoUri) {
         mutableIntStateOf(0)
     }
-    var selectedFilter by remember(photoUri) {
-        mutableStateOf("Оригинал")
+    var cropMode by remember(photoUri) {
+    mutableStateOf(false)
+}
+
+var cropRatio by remember(photoUri) {
+    mutableStateOf("1:1")
+}
+
+var cropX by remember(photoUri) {
+    mutableFloatStateOf(0f)
+}
+
+var cropY by remember(photoUri) {
+    mutableFloatStateOf(0f)
+}
+var selectedFilter by remember(photoUri) {
+    mutableStateOf("Оригинал")
     }
 
     var showOriginal by remember {
@@ -511,7 +526,114 @@ fun PhotoEditorScreen(
         )
 
         Spacer(Modifier.height(18.dp))
+            OutlinedButton(
+                onClick = {
+                    cropMode = !cropMode
+                    cropX = 0f
+                    cropY = 0f
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Outlined.Crop, null)
+                Spacer(Modifier.width(8.dp))
+                Text(if (cropMode) "Закрыть обрезку" else "Обрезать фото")
+            }
 
+            if (cropMode) {
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "Формат кадрирования",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Ink
+                )
+
+                Spacer(Modifier.height(8.dp))
+
+                val ratios = listOf(
+                    "1:1", "4:5", "16:9", "9:16", "Свободно"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(7.dp)
+                ) {
+                    ratios.forEach { ratio ->
+                        FilterChip(
+                            selected = cropRatio == ratio,
+                            onClick = {
+                                cropRatio = ratio
+                                cropX = 0f
+                                cropY = 0f
+                            },
+                            label = { Text(ratio) }
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    "Положение по горизонтали",
+                    color = Ink
+                )
+
+                Slider(
+                    value = cropX,
+                    onValueChange = { cropX = it },
+                    valueRange = -1f..1f
+                )
+
+                Text(
+                    "Положение по вертикали",
+                    color = Ink
+                )
+
+                Slider(
+                    value = cropY,
+                    onValueChange = { cropY = it },
+                    valueRange = -1f..1f
+                )
+
+                Button(
+                    onClick = {
+                        original?.let { bitmap ->
+                            val cropped = cropBitmap(
+                                bitmap,
+                                cropRatio,
+                                cropX,
+                                cropY
+                            )
+
+                            original = cropped
+                        }
+
+                        cropMode = false
+                        cropX = 0f
+                        cropY = 0f
+                        message = "Обрезка применена!"
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Outlined.Check, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Применить обрезку")
+                }
+
+                OutlinedButton(
+                    onClick = {
+                        cropX = 0f
+                        cropY = 0f
+                        cropRatio = "1:1"
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Сбросить область обрезки")
+                }
+            }
         if (preview == null) {
             Box(
                 Modifier
@@ -989,4 +1111,58 @@ fun createEditedBitmap(
     )
 
     return output
+}
+fun cropBitmap(
+    source: Bitmap,
+    ratio: String,
+    offsetX: Float,
+    offsetY: Float
+): Bitmap {
+
+    if (ratio == "Свободно") {
+        return source
+    }
+
+    val targetRatio = when (ratio) {
+        "1:1" -> 1f
+        "4:5" -> 4f / 5f
+        "16:9" -> 16f / 9f
+        "9:16" -> 9f / 16f
+        else -> source.width.toFloat() / source.height
+    }
+
+    val sourceRatio =
+        source.width.toFloat() / source.height
+
+    var cropWidth = source.width
+    var cropHeight = source.height
+
+    if (sourceRatio > targetRatio) {
+        cropWidth = (source.height * targetRatio)
+            .toInt()
+            .coerceIn(1, source.width)
+    } else {
+        cropHeight = (source.width / targetRatio)
+            .toInt()
+            .coerceIn(1, source.height)
+    }
+
+    val maxX = source.width - cropWidth
+    val maxY = source.height - cropHeight
+
+    val left = (
+        maxX / 2f + offsetX * maxX / 2f
+    ).toInt().coerceIn(0, maxX)
+
+    val top = (
+        maxY / 2f + offsetY * maxY / 2f
+    ).toInt().coerceIn(0, maxY)
+
+    return Bitmap.createBitmap(
+        source,
+        left,
+        top,
+        cropWidth,
+        cropHeight
+    )
 }
