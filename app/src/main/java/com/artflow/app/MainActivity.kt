@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.ColorMatrixColorFilter
+import android.graphics.Typeface
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,6 +47,11 @@ private val Muted = Color(0xFF777B82)
 private val Accent = Color(0xFF6657D9)
 private val Background = Color(0xFFF7F8FA)
 
+private val EditorDark = Color(0xFF202020)
+private val EditorPanel = Color(0xFF292929)
+private val EditorMuted = Color(0xFF999999)
+private val EditorWhite = Color(0xFFFFFFFF)
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -84,7 +90,10 @@ fun ArtflowApp() {
         Scaffold(
             containerColor = Background,
             bottomBar = {
-                NavigationBar(containerColor = Color.White) {
+                NavigationBar(
+                    containerColor = Color.White,
+                    tonalElevation = 0.dp
+                ) {
                     val items = listOf(
                         "Главная" to Icons.Outlined.Home,
                         "Фото" to Icons.Outlined.Photo,
@@ -107,7 +116,7 @@ fun ArtflowApp() {
         ) { padding ->
             when (selected) {
                 "Главная" -> HomeScreen(
-                    Modifier.padding(padding),
+                    modifier = Modifier.padding(padding),
                     onPhoto = { openGallery() },
                     onAI = { selected = "AI" }
                 )
@@ -141,6 +150,7 @@ fun HomeScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(20.dp)
     ) {
         Spacer(Modifier.height(20.dp))
@@ -323,7 +333,6 @@ fun RowScope.QuickTool(
         Text(title, fontSize = 12.sp, color = Ink)
     }
 }
-
 @Composable
 fun PhotoEditorScreen(
     modifier: Modifier = Modifier,
@@ -337,163 +346,25 @@ fun PhotoEditorScreen(
         mutableStateOf<Bitmap?>(null)
     }
 
-    var brightness by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var contrast by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var saturation by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var warmth by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var rotation by remember(photoUri) {
-        mutableIntStateOf(0)
-    }
-    var cropRatio by remember(photoUri) {
-        mutableStateOf("1:1")
-    }
-    var cropX by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var cropY by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var overlayText by remember(photoUri) {
-        mutableStateOf("")
-    }
-    var textColor by remember(photoUri) {
-        mutableStateOf(Color.White)
-    }
-    var textSize by remember(photoUri) {
-        mutableFloatStateOf(48f)
-    }
-    var textX by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
-    var textY by remember(photoUri) {
-        mutableFloatStateOf(0f)
-    }
+    var brightness by remember(photoUri) { mutableFloatStateOf(0f) }
+    var contrast by remember(photoUri) { mutableFloatStateOf(0f) }
+    var saturation by remember(photoUri) { mutableFloatStateOf(0f) }
+    var warmth by remember(photoUri) { mutableFloatStateOf(0f) }
+    var rotation by remember(photoUri) { mutableIntStateOf(0) }
+
     var selectedFilter by remember(photoUri) {
         mutableStateOf("Оригинал")
     }
 
-    var showOriginal by remember {
-        mutableStateOf(false)
-    }
-    var saving by remember {
-        mutableStateOf(false)
-    }
-    var message by remember {
-        mutableStateOf("")
-    }
+    var selectedTab by remember { mutableStateOf("Регулировка") }
+    var selectedTool by remember { mutableStateOf("Яркость") }
 
-    val saveLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.CreateDocument("image/jpeg")
-    ) { uri ->
-        if (uri != null && original != null) {
-            scope.launch {
-                saving = true
-                message = ""
-
-                try {
-                    withContext(Dispatchers.IO) {
-                        val matrix = createEditorMatrix(
-                            brightness,
-                            contrast,
-                            saturation,
-                            warmth,
-                            selectedFilter
-                        )
-
-                        val edited = createEditedBitmap(
-                            original!!,
-                            matrix,
-                            rotation
-                        )
-
-                        val result = if (overlayText.isNotBlank()) {
-                            drawTextOnBitmap(
-                                edited,
-                                overlayText,
-                                textColor.toArgb(),
-                                textSize,
-                                textX,
-                                textY
-                            )
-                        } else {
-                            edited
-                        }
-
-                        if (result !== edited) edited.recycle()
-
-                        context.contentResolver
-                            .openOutputStream(uri)
-                            ?.use { stream ->
-                                result.compress(
-                                    Bitmap.CompressFormat.JPEG,
-                                    95,
-                                    stream
-                                )
-                            } ?: error("Не удалось открыть файл")
-
-                        result.recycle()
-                    }
-
-                    message = "Фотография успешно сохранена!"
-                } catch (e: Exception) {
-                    message = "Ошибка сохранения: ${e.message}"
-                } finally {
-                    saving = false
-                }
-            }
-        }
-    }
-
-    LaunchedEffect(photoUri) {
-        original = null
-
-        if (photoUri != null) {
-            original = withContext(Dispatchers.IO) {
-                val resolver = context.contentResolver
-
-                val bounds = BitmapFactory.Options().apply {
-                    inJustDecodeBounds = true
-                }
-
-                resolver.openInputStream(photoUri)?.use {
-                    BitmapFactory.decodeStream(it, null, bounds)
-                }
-
-                var sample = 1
-
-                while (
-                    maxOf(bounds.outWidth, bounds.outHeight) /
-                    sample > 3000
-                ) {
-                    sample *= 2
-                }
-
-                val options = BitmapFactory.Options().apply {
-                    inSampleSize = sample
-                    inPreferredConfig = Bitmap.Config.ARGB_8888
-                }
-
-                resolver.openInputStream(photoUri)?.use {
-                    BitmapFactory.decodeStream(it, null, options)
-                }
-            }
-        }
-    }
+    var showOriginal by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("") }
 
     val matrix = remember(
-        brightness,
-        contrast,
-        saturation,
-        warmth,
-        selectedFilter
+        brightness, contrast, saturation, warmth, selectedFilter
     ) {
         createEditorMatrix(
             brightness,
@@ -504,13 +375,43 @@ fun PhotoEditorScreen(
         )
     }
 
+    LaunchedEffect(photoUri) {
+        original = null
+
+        if (photoUri != null) {
+            original = withContext(Dispatchers.IO) {
+                val bounds = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+
+                context.contentResolver.openInputStream(photoUri)?.use {
+                    BitmapFactory.decodeStream(it, null, bounds)
+                }
+
+                var sample = 1
+                while (
+                    maxOf(bounds.outWidth, bounds.outHeight) / sample > 3000
+                ) {
+                    sample *= 2
+                }
+
+                val options = BitmapFactory.Options().apply {
+                    inSampleSize = sample
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+
+                context.contentResolver.openInputStream(photoUri)?.use {
+                    BitmapFactory.decodeStream(it, null, options)
+                }
+            }
+        }
+    }
+
     val preview = remember(original) {
         original?.let { bitmap ->
-            val maxSize = 1600f
-
             val scale = minOf(
                 1f,
-                maxSize / maxOf(
+                1400f / maxOf(
                     bitmap.width.toFloat(),
                     bitmap.height.toFloat()
                 )
@@ -529,69 +430,93 @@ fun PhotoEditorScreen(
         }
     }
 
+    val saveLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("image/jpeg")
+    ) { uri ->
+        if (uri != null && original != null) {
+            scope.launch {
+                saving = true
+                message = ""
+
+                try {
+                    withContext(Dispatchers.IO) {
+                        val edited = createEditedBitmap(
+                            original!!,
+                            matrix,
+                            rotation
+                        )
+
+                        context.contentResolver
+                            .openOutputStream(uri)
+                            ?.use { stream ->
+                                edited.compress(
+                                    Bitmap.CompressFormat.JPEG,
+                                    95,
+                                    stream
+                                )
+                            } ?: error("Не удалось открыть файл")
+
+                        edited.recycle()
+                    }
+
+                    message = "Фотография сохранена!"
+                } catch (e: Exception) {
+                    message = "Ошибка: ${e.message}"
+                } finally {
+                    saving = false
+                }
+            }
+        }
+    }
+
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(Background)
-            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .background(EditorDark)
     ) {
-        Text(
-            "Фоторедактор",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = Ink
-        )
 
-        Text(
-            "Создавай фотографии по-своему",
-            color = Muted,
-            fontSize = 12.sp
-        )
+        // ВЕРХНЯЯ ЧАСТЬ — ФОТО НЕ ПРОКРУЧИВАЕТСЯ
 
-        Spacer(Modifier.height(8.dp))
-
-        if (preview == null) {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color.Black),
+            contentAlignment = Alignment.Center
+        ) {
+            if (preview == null) {
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Icon(
                         Icons.Outlined.AddPhotoAlternate,
                         contentDescription = null,
-                        tint = Accent,
-                        modifier = Modifier.size(55.dp)
+                        tint = EditorWhite,
+                        modifier = Modifier.size(48.dp)
+                    )
+
+                    Spacer(Modifier.height(10.dp))
+
+                    Text(
+                        "Выбери фотографию",
+                        color = EditorWhite
                     )
 
                     Spacer(Modifier.height(12.dp))
 
-                    Text(
-                        "Выбери фотографию",
-                        color = Ink
-                    )
+                    Button(onClick = onChoosePhoto) {
+                        Text("Открыть галерею")
+                    }
                 }
-            }
-        } else {
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White),
-                contentAlignment = Alignment.Center
-            ) {
+            } else {
                 Image(
                     bitmap = preview.asImageBitmap(),
-                    contentDescription = "Предпросмотр фотографии",
+                    contentDescription = "Фото",
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(8.dp),
+                        .padding(5.dp),
                     contentScale = ContentScale.Fit,
                     colorFilter = if (showOriginal) {
                         null
@@ -599,296 +524,19 @@ fun PhotoEditorScreen(
                         ColorFilter.colorMatrix(ColorMatrix(matrix))
                     }
                 )
-
-                if (overlayText.isNotBlank() && !showOriginal) {
-                    Text(
-                        text = overlayText,
-                        color = textColor,
-                        fontSize = textSize.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .offset(
-                                x = (textX * 100f).dp,
-                                y = (textY * 100f).dp
-                            )
-                    )
-                }
             }
+        }
 
-            Spacer(Modifier.height(12.dp))
+        // КОМПАКТНЫЕ КНОПКИ
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = { showOriginal = !showOriginal },
-                    modifier = Modifier.weight(1f).height(38.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Outlined.Compare, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(if (showOriginal) "После" else "До / После", fontSize = 11.sp)
-                }
-
-                OutlinedButton(
-                    onClick = { rotation = (rotation + 90) % 360 },
-                    modifier = Modifier.weight(1f).height(38.dp),
-                    contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp)
-                ) {
-                    Icon(Icons.Outlined.RotateRight, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text("Повернуть", fontSize = 11.sp)
-                }
-            }
-
-            Spacer(Modifier.height(8.dp))
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
-            ) {
-                Text(
-                    "Обрезка фото",
-                    fontSize = 19.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Ink
-                )
-
-                Spacer(Modifier.height(10.dp))
-                Text("Формат кадрирования", color = Ink)
-
-                val cropRatios = listOf("1:1", "4:5", "16:9", "9:16")
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    cropRatios.forEach { ratio ->
-                        FilterChip(
-                            selected = cropRatio == ratio,
-                            onClick = {
-                                cropRatio = ratio
-                                cropX = 0f
-                                cropY = 0f
-                            },
-                            label = { Text(ratio) }
-                        )
-                    }
-                }
-
-                Text("Положение по горизонтали", color = Ink)
-                Slider(
-                    value = cropX,
-                    onValueChange = { cropX = it },
-                    valueRange = -1f..1f
-                )
-
-                Text("Положение по вертикали", color = Ink)
-                Slider(
-                    value = cropY,
-                    onValueChange = { cropY = it },
-                    valueRange = -1f..1f
-                )
-
-                Button(
-                    onClick = {
-                        original?.let { bitmap ->
-                            val cropped = cropBitmap(
-                                bitmap,
-                                cropRatio,
-                                cropX,
-                                cropY
-                            )
-                            original = cropped
-                        }
-                        cropX = 0f
-                        cropY = 0f
-                        message = "Обрезка применена!"
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Outlined.Crop, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Применить обрезку")
-                }
-
-                Spacer(Modifier.height(20.dp))
-
-                Text(
-                    "Текст на фото",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink
-            )
-
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = overlayText,
-                onValueChange = { overlayText = it },
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Введите надпись") },
-                singleLine = true
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            Text("Цвет текста", color = Ink)
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                listOf(
-                    Color.White,
-                    Color.Black,
-                    Color.Red,
-                    Color.Yellow,
-                    Color.Blue,
-                    Color.Green
-                ).forEach { color ->
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .background(color, CircleShape)
-                            .clickable { textColor = color }
-                            .clip(CircleShape)
-                    ) {
-                        if (textColor == color) {
-                            Icon(
-                                Icons.Outlined.Check,
-                                contentDescription = "Выбранный цвет",
-                                tint = if (color == Color.White || color == Color.Yellow) Color.Black else Color.White,
-                                modifier = Modifier.align(Alignment.Center)
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(10.dp))
-
-            Text("Размер текста: ${textSize.toInt()}", color = Ink)
-            Slider(
-                value = textSize,
-                onValueChange = { textSize = it },
-                valueRange = 20f..100f
-            )
-
-            Text("Положение по горизонтали", color = Ink)
-            Slider(
-                value = textX,
-                onValueChange = { textX = it },
-                valueRange = -1f..1f
-            )
-
-            Text("Положение по вертикали", color = Ink)
-            Slider(
-                value = textY,
-                onValueChange = { textY = it },
-                valueRange = -1f..1f
-            )
-
-            OutlinedButton(
-                onClick = {
-                    overlayText = ""
-                    textColor = Color.White
-                    textSize = 48f
-                    textX = 0f
-                    textY = 0f
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Убрать текст")
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            Text(
-                "Фильтры",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            val filters = listOf(
-                "Оригинал",
-                "Яркий",
-                "Тёплый",
-                "Холодный",
-                "Винтаж",
-                "Ч/Б"
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                filters.forEach { filter ->
-                    FilterChip(
-                        selected = selectedFilter == filter,
-                        onClick = {
-                            selectedFilter = filter
-                            showOriginal = false
-                        },
-                        label = {
-                            Text(filter)
-                        },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFEAE6FF),
-                            selectedLabelColor = Accent
-                        )
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(18.dp))
-
-            Text(
-                "Настройки изображения",
-                fontSize = 19.sp,
-                fontWeight = FontWeight.Bold,
-                color = Ink
-            )
-
-            Spacer(Modifier.height(12.dp))
-
-            EditorSlider(
-                "Яркость",
-                brightness,
-                { brightness = it }
-            )
-
-            EditorSlider(
-                "Контрастность",
-                contrast,
-                { contrast = it }
-            )
-
-            EditorSlider(
-                "Насыщенность",
-                saturation,
-                { saturation = it }
-            )
-
-            EditorSlider(
-                "Теплота",
-                warmth,
-                { warmth = it }
-            )
-
-            Spacer(Modifier.height(10.dp))
-
-            OutlinedButton(
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(
                 onClick = {
                     brightness = 0f
                     contrast = 0f
@@ -896,116 +544,363 @@ fun PhotoEditorScreen(
                     warmth = 0f
                     selectedFilter = "Оригинал"
                     rotation = 0
-                    overlayText = ""
-                    textColor = Color.White
-                    textSize = 48f
-                    textX = 0f
-                    textY = 0f
-                    showOriginal = false
                 },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Outlined.RestartAlt, null)
-                Spacer(Modifier.width(8.dp))
-                Text("Сбросить настройки")
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Button(
-                onClick = onChoosePhoto,
-                modifier = Modifier.weight(1f).height(42.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                shape = RoundedCornerShape(11.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Accent)
+                enabled = original != null
             ) {
                 Icon(
-                    Icons.Outlined.AddPhotoAlternate,
-                    null,
-                    modifier = Modifier.size(16.dp)
+                    Icons.Outlined.Refresh,
+                    contentDescription = "Сбросить",
+                    tint = EditorMuted
                 )
-                Spacer(Modifier.width(4.dp))
-                Text("Выбрать", fontSize = 11.sp, maxLines = 1)
             }
 
-            if (preview != null) {
-                Button(
-                    onClick = {
-                        showOriginal = false
+            IconButton(
+                onClick = { showOriginal = !showOriginal },
+                enabled = original != null
+            ) {
+                Icon(
+                    Icons.Outlined.Compare,
+                    contentDescription = "До и после",
+                    tint = EditorWhite
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    rotation = (rotation + 90) % 360
+                },
+                enabled = original != null
+            ) {
+                Icon(
+                    Icons.Outlined.RotateRight,
+                    contentDescription = "Повернуть",
+                    tint = EditorWhite
+                )
+            }
+
+            IconButton(
+                onClick = {
+                    showOriginal = false
+                    if (original != null) {
                         saveLauncher.launch(
                             "ARTFLOW_${System.currentTimeMillis()}.jpg"
                         )
-                    },
-                    enabled = !saving,
-                    modifier = Modifier.weight(1f).height(42.dp),
-                    contentPadding = PaddingValues(horizontal = 4.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(11.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF249B61)
-                    )
-                ) {
-                    Icon(Icons.Outlined.Save, null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        if (saving) "Сохранение" else "Сохранить",
-                        fontSize = 11.sp,
-                        maxLines = 1
-                    )
-                }
+                    }
+                },
+                enabled = original != null && !saving
+            ) {
+                Icon(
+                    Icons.Outlined.Check,
+                    contentDescription = "Сохранить",
+                    tint = EditorWhite
+                )
             }
         }
 
-        if (message.isNotEmpty()) {
-            Spacer(Modifier.height(4.dp))
-            Text(message, color = Accent, fontSize = 11.sp)
-        }
+        // НИЖНЯЯ ПАНЕЛЬ ИНСТРУМЕНТОВ
 
-        Spacer(Modifier.height(6.dp))
-        }
-    }
-}
-
-@Composable
-fun EditorSlider(
-    title: String,
-    value: Float,
-    onValueChange: (Float) -> Unit
-) {
-    Column(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(0.85f)
+                .background(EditorPanel)
+                .padding(top = 8.dp)
         ) {
-            Text(
-                title,
-                color = Ink,
-                fontWeight = FontWeight.Medium
-            )
+
+            // ВКЛАДКИ
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("Фильтр", "Регулировка").forEach { tab ->
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clickable {
+                                selectedTab = tab
+                            }
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            tab,
+                            color = if (selectedTab == tab) {
+                                EditorWhite
+                            } else {
+                                EditorMuted
+                            },
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Box(
+                            Modifier
+                                .fillMaxWidth(0.85f)
+                                .height(3.dp)
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(
+                                    if (selectedTab == tab) {
+                                        EditorWhite
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+
+            if (selectedTab == "Фильтр") {
+
+                val filters = listOf(
+                    "Оригинал",
+                    "Яркий",
+                    "Тёплый",
+                    "Холодный",
+                    "Винтаж",
+                    "Ч/Б"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    filters.forEach { filter ->
+                        Surface(
+                            color = if (selectedFilter == filter) {
+                                EditorWhite
+                            } else {
+                                EditorPanel
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            modifier = Modifier.clickable {
+                                selectedFilter = filter
+                                showOriginal = false
+                            }
+                        ) {
+                            Text(
+                                filter,
+                                color = if (selectedFilter == filter) {
+                                    EditorDark
+                                } else {
+                                    EditorWhite
+                                },
+                                modifier = Modifier.padding(
+                                    horizontal = 15.dp,
+                                    vertical = 9.dp
+                                ),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(15.dp))
+
+                Text(
+                    "Интенсивность фильтра",
+                    color = EditorMuted,
+                    modifier = Modifier.padding(horizontal = 18.dp),
+                    fontSize = 12.sp
+                )
+
+            } else {
+
+                val tools = listOf(
+                    "Яркость",
+                    "Контраст",
+                    "Тепло",
+                    "Насыщенность"
+                )
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    tools.forEach { tool ->
+                        Column(
+                            modifier = Modifier
+                                .width(86.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable {
+                                    selectedTool = tool
+                                }
+                                .background(
+                                    if (selectedTool == tool) {
+                                        Color(0xFF3B3B3B)
+                                    } else {
+                                        Color.Transparent
+                                    }
+                                )
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            val toolIcon = when (tool) {
+                                "Яркость" -> Icons.Outlined.Brightness6
+                                "Контраст" -> Icons.Outlined.Contrast
+                                "Тепло" -> Icons.Outlined.WbSunny
+                                else -> Icons.Outlined.Palette
+                            }
+
+                            Icon(
+                                toolIcon,
+                                contentDescription = tool,
+                                tint = if (selectedTool == tool) {
+                                    EditorWhite
+                                } else {
+                                    EditorMuted
+                                },
+                                modifier = Modifier.size(27.dp)
+                            )
+
+                            Spacer(Modifier.height(5.dp))
+
+                            Text(
+                                tool,
+                                color = if (selectedTool == tool) {
+                                    EditorWhite
+                                } else {
+                                    EditorMuted
+                                },
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            // ПОЛЗУНОК ВЫБРАННОГО ИНСТРУМЕНТА
+
+            val currentValue = when {
+                selectedTab == "Фильтр" -> 100f
+                selectedTool == "Яркость" -> brightness
+                selectedTool == "Контраст" -> contrast
+                selectedTool == "Тепло" -> warmth
+                else -> saturation
+            }
 
             Text(
-                value.toInt().toString(),
-                color = Accent,
-                fontWeight = FontWeight.Bold
+                if (selectedTab == "Фильтр") {
+                    selectedFilter
+                } else {
+                    "${selectedTool}: ${currentValue.toInt()}"
+                },
+                color = EditorWhite,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 18.dp)
             )
+
+            Slider(
+                value = currentValue,
+                onValueChange = { value ->
+                    if (selectedTab == "Регулировка") {
+                        when (selectedTool) {
+                            "Яркость" -> brightness = value
+                            "Контраст" -> contrast = value
+                            "Тепло" -> warmth = value
+                            "Насыщенность" -> saturation = value
+                        }
+                        showOriginal = false
+                    }
+                },
+                valueRange = if (selectedTab == "Фильтр") {
+                    0f..100f
+                } else {
+                    -100f..100f
+                },
+                enabled = selectedTab == "Регулировка",
+                colors = SliderDefaults.colors(
+                    thumbColor = EditorWhite,
+                    activeTrackColor = EditorWhite,
+                    inactiveTrackColor = EditorMuted
+                ),
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            // ДОПОЛНИТЕЛЬНЫЕ ИНСТРУМЕНТЫ В ОДНУ СТРОКУ
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                val extraTools = listOf(
+                    "Обрезка" to Icons.Outlined.Crop,
+                    "Текст" to Icons.Outlined.TextFields,
+                    "Резкость" to Icons.Outlined.Details,
+                    "Эффекты" to Icons.Outlined.AutoAwesome,
+                    "Портрет" to Icons.Outlined.Face,
+                    "Стикер" to Icons.Outlined.EmojiEmotions
+                )
+
+                extraTools.forEach { item ->
+                    Column(
+                        modifier = Modifier
+                            .width(78.dp)
+                            .clickable {
+                                selectedTool = item.first
+                                message = when (item.first) {
+                                    "Обрезка" -> "Обрезка будет добавлена следующим этапом"
+                                    "Текст" -> "Добавление текста будет добавлено следующим этапом"
+                                    else -> "${item.first} — следующий этап разработки"
+                                }
+                            }
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            item.second,
+                            contentDescription = item.first,
+                            tint = EditorWhite,
+                            modifier = Modifier.size(25.dp)
+                        )
+
+                        Spacer(Modifier.height(5.dp))
+
+                        Text(
+                            item.first,
+                            color = EditorMuted,
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(4.dp))
+
+            if (message.isNotEmpty()) {
+                Text(
+                    message,
+                    color = EditorWhite,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(horizontal = 12.dp)
+                )
+            }
         }
-
-        Slider(
-            value = value,
-            onValueChange = onValueChange,
-            valueRange = -100f..100f,
-            colors = SliderDefaults.colors(
-                thumbColor = Accent,
-                activeTrackColor = Accent
-            )
-        )
     }
 }
-
 @Composable
 fun ModuleScreen(
     title: String,
@@ -1037,10 +932,7 @@ fun ModuleScreen(
 
         Spacer(Modifier.height(10.dp))
 
-        Text(
-            description,
-            color = Muted
-        )
+        Text(description, color = Muted)
     }
 }
 
@@ -1097,7 +989,6 @@ fun createEditorMatrix(
     )
 
     val preset = when (filter) {
-
         "Яркий" -> floatArrayOf(
             1.12f, 0f, 0f, 0f, -8f,
             0f, 1.12f, 0f, 0f, -8f,
@@ -1141,10 +1032,7 @@ fun createEditorMatrix(
         )
     }
 
-    return multiplyColorMatrices(
-        adjustments,
-        preset
-    )
+    return multiplyColorMatrices(adjustments, preset)
 }
 
 fun multiplyColorMatrices(
@@ -1216,41 +1104,13 @@ fun createEditedBitmap(
     return output
 }
 
-fun drawTextOnBitmap(
-    source: Bitmap,
-    text: String,
-    color: Int,
-    previewTextSize: Float,
-    offsetX: Float,
-    offsetY: Float
-): Bitmap {
-    val output = source.copy(Bitmap.Config.ARGB_8888, true)
-    val canvas = Canvas(output)
-
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        this.color = color
-        textAlign = Paint.Align.CENTER
-        textSize = (previewTextSize * source.width / 360f).coerceIn(12f, 400f)
-        typeface = android.graphics.Typeface.create(
-            android.graphics.Typeface.DEFAULT,
-            android.graphics.Typeface.BOLD
-        )
-        setShadowLayer(4f, 2f, 2f, android.graphics.Color.BLACK)
-    }
-
-    val x = source.width / 2f + offsetX * source.width * 0.35f
-    val y = source.height / 2f + offsetY * source.height * 0.35f
-
-    canvas.drawText(text, x, y, paint)
-    return output
-}
-
 fun cropBitmap(
     source: Bitmap,
     ratio: String,
     offsetX: Float,
     offsetY: Float
 ): Bitmap {
+
     val targetRatio = when (ratio) {
         "1:1" -> 1f
         "4:5" -> 4f / 5f
@@ -1259,7 +1119,9 @@ fun cropBitmap(
         else -> source.width.toFloat() / source.height.toFloat()
     }
 
-    val sourceRatio = source.width.toFloat() / source.height.toFloat()
+    val sourceRatio =
+        source.width.toFloat() / source.height.toFloat()
+
     var cropWidth = source.width
     var cropHeight = source.height
 
@@ -1279,9 +1141,16 @@ fun cropBitmap(
     val left = (maxX / 2f + offsetX * maxX / 2f)
         .toInt()
         .coerceIn(0, maxX)
+
     val top = (maxY / 2f + offsetY * maxY / 2f)
         .toInt()
         .coerceIn(0, maxY)
 
-    return Bitmap.createBitmap(source, left, top, cropWidth, cropHeight)
+    return Bitmap.createBitmap(
+        source,
+        left,
+        top,
+        cropWidth,
+        cropHeight
+    )
 }
