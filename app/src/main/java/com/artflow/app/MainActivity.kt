@@ -47,10 +47,10 @@ private val Muted = Color(0xFF777B82)
 private val Accent = Color(0xFF6657D9)
 private val Background = Color(0xFFF7F8FA)
 
-private val EditorDark = Color(0xFF202020)
-private val EditorPanel = Color(0xFF292929)
-private val EditorMuted = Color(0xFF999999)
-private val EditorWhite = Color(0xFFFFFFFF)
+private val EditorDark = Color(0xFFF7F8FA)
+private val EditorPanel = Color(0xFFFFFFFF)
+private val EditorMuted = Color(0xFF85858F)
+private val EditorWhite = Color(0xFF292633)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -478,54 +478,44 @@ fun PhotoEditorScreen(
         // ВЕРХНЯЯ ЧАСТЬ — ФОТО НЕ ПРОКРУЧИВАЕТСЯ
 
         Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(Color.Black),
-            contentAlignment = Alignment.Center
-        ) {
-            if (preview == null) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        Icons.Outlined.AddPhotoAlternate,
-                        contentDescription = null,
-                        tint = EditorWhite,
-                        modifier = Modifier.size(48.dp)
-                    )
-
-                    Spacer(Modifier.height(10.dp))
-
-                    Text(
-                        "Выбери фотографию",
-                        color = EditorWhite
-                    )
-
-                    Spacer(Modifier.height(12.dp))
-
-                    Button(onClick = onChoosePhoto) {
-                        Text("Открыть галерею")
-                    }
-                }
-            } else {
-                Image(
-                    bitmap = preview.asImageBitmap(),
-                    contentDescription = "Фото",
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(5.dp),
-                    contentScale = ContentScale.Fit,
-                    colorFilter = if (showOriginal) {
-                        null
-                    } else {
-                        ColorFilter.colorMatrix(ColorMatrix(matrix))
-                    }
-                )
+    modifier = Modifier
+        .fillMaxWidth()
+        .height(205.dp)
+        .padding(horizontal = 12.dp, vertical = 5.dp)
+        .clip(RoundedCornerShape(12.dp))
+        .background(Color.White),
+    contentAlignment = Alignment.Center
+) {
+    if (preview == null) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                Icons.Outlined.AddPhotoAlternate,
+                null,
+                tint = Accent,
+                modifier = Modifier.size(42.dp)
+            )
+            Spacer(Modifier.height(8.dp))
+            Text("Выбери фотографию", color = EditorWhite)
+            Button(onClick = onChoosePhoto) {
+                Text("Открыть галерею")
             }
         }
+    } else {
+        Image(
+            bitmap = preview.asImageBitmap(),
+            contentDescription = "Фото",
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(5.dp),
+            contentScale = ContentScale.Fit,
+            colorFilter = if (showOriginal) {
+                null
+            } else {
+                ColorFilter.colorMatrix(ColorMatrix(matrix))
+            }
+        )
+    }
+}
 
         // КОМПАКТНЫЕ КНОПКИ
 
@@ -561,7 +551,7 @@ fun PhotoEditorScreen(
                 Icon(
                     Icons.Outlined.Compare,
                     contentDescription = "До и после",
-                    tint = EditorWhite
+                    tint = Accent
                 )
             }
 
@@ -574,7 +564,7 @@ fun PhotoEditorScreen(
                 Icon(
                     Icons.Outlined.RotateRight,
                     contentDescription = "Повернуть",
-                    tint = EditorWhite
+                    tint = Accent
                 )
             }
 
@@ -592,7 +582,7 @@ fun PhotoEditorScreen(
                 Icon(
                     Icons.Outlined.Check,
                     contentDescription = "Сохранить",
-                    tint = EditorWhite
+                    tint = Accent
                 )
             }
         }
@@ -602,7 +592,7 @@ fun PhotoEditorScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(0.85f)
+                .weight(1f)
                 .background(EditorPanel)
                 .padding(top = 8.dp)
         ) {
@@ -678,9 +668,9 @@ fun PhotoEditorScreen(
                     filters.forEach { filter ->
                         Surface(
                             color = if (selectedFilter == filter) {
-                                EditorWhite
+                                Accent
                             } else {
-                                EditorPanel
+                                Color(0xFFF0EDFF)
                             },
                             shape = RoundedCornerShape(20.dp),
                             modifier = Modifier.clickable {
@@ -691,9 +681,9 @@ fun PhotoEditorScreen(
                             Text(
                                 filter,
                                 color = if (selectedFilter == filter) {
-                                    EditorDark
+                                    Color.White
                                 } else {
-                                    EditorWhite
+                                    Accent
                                 },
                                 modifier = Modifier.padding(
                                     horizontal = 15.dp,
@@ -872,7 +862,7 @@ fun PhotoEditorScreen(
                         Icon(
                             item.second,
                             contentDescription = item.first,
-                            tint = EditorWhite,
+                            tint = Accent,
                             modifier = Modifier.size(25.dp)
                         )
 
