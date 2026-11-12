@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
 
 private val Ink = Color(0xFF202124)
 private val Muted = Color(0xFF777B82)
@@ -161,6 +162,7 @@ fun ArtflowApp() {
         }
     }
 }
+
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,
@@ -454,18 +456,64 @@ fun PhotoEditorScreen(
         )
     }
 
-    val preview = remember(
-        original, matrix, sharpness, blur, rotation
+    var preview by remember(photoUri) {
+        mutableStateOf<Bitmap?>(null)
+    }
+
+    LaunchedEffect(
+        original,
+        matrix,
+        sharpness,
+        blur,
+        rotation
     ) {
-        original?.let { source ->
-            val scaled = scaleBitmapForPreview(source)
-            createEditedBitmap(
-                scaled,
-                matrix,
-                rotation,
-                sharpness,
-                blur
-            )
+        delay(220)
+
+        val source = original
+
+        if (source == null) {
+            val oldPreview = preview
+            preview = null
+
+            if (
+                oldPreview != null &&
+                !oldPreview.isRecycled
+            ) {
+                oldPreview.recycle()
+            }
+        } else {
+            val newPreview = withContext(Dispatchers.Default) {
+                val scaled = scaleBitmapForPreview(source)
+
+                try {
+                    createEditedBitmap(
+                        scaled,
+                        matrix,
+                        rotation,
+                        sharpness,
+                        blur
+                    )
+                } finally {
+                    if (
+                        scaled !== source &&
+                        !scaled.isRecycled
+                    ) {
+                        scaled.recycle()
+                    }
+                }
+            }
+
+            val oldPreview = preview
+            preview = newPreview
+
+            if (
+                oldPreview != null &&
+                oldPreview !== source &&
+                oldPreview !== newPreview &&
+                !oldPreview.isRecycled
+            ) {
+                oldPreview.recycle()
+            }
         }
     }
 
@@ -496,6 +544,7 @@ fun PhotoEditorScreen(
                                 textX,
                                 textY
                             )
+
                             edited.recycle()
                             edited = withText
                         }
@@ -664,7 +713,7 @@ fun PhotoEditorScreen(
                 .weight(1f)
                 .background(EditorPanel)
         ) {
-            Row(
+                        Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 5.dp)
@@ -1068,7 +1117,7 @@ fun EditorSlider(
 fun scaleBitmapForPreview(source: Bitmap): Bitmap {
     val scale = minOf(
         1f,
-        1000f / maxOf(source.width, source.height)
+        360f / maxOf(source.width, source.height)
     )
 
     return if (scale < 1f) {
